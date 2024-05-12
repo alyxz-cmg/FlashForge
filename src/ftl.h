@@ -17,11 +17,13 @@ public:
     bool read(uint32_t lpn);
     void trim(uint32_t lpn);
 
+    const MetricsCollector& get_metrics() const { return metrics_; }
     const FlashModel& get_flash() const { return flash_; }
 
 private:
     SystemConfig config_;
     FlashModel flash_;
+    MetricsCollector metrics_;
 
     std::vector<PhysicalAddress> l2p_table_;
     
