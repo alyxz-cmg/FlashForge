@@ -28,5 +28,10 @@ public:
         gc_events++;
         gc_pages_moved += pages_moved;
     }
+
+    double get_write_amplification() const {
+        if (host_writes == 0) return 1.0;
+        return static_cast<double>(flash_writes) / host_writes;
+    }
 };
 }
