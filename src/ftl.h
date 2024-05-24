@@ -31,7 +31,7 @@ private:
     uint32_t active_block_;
     uint32_t active_page_offset_;
 
-    PhysicalAddress allocate_page();
+    PhysicalAddress allocate_page(bool is_for_gc = false);
     void trigger_garbage_collection();
     uint32_t get_next_free_block();
 };

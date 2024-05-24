@@ -59,9 +59,9 @@ void FtlEngine::trim(uint32_t lpn) {
     }
 }
 
-PhysicalAddress FtlEngine::allocate_page() {
+PhysicalAddress FtlEngine::allocate_page(bool is_for_gc) {
     if (active_page_offset_ >= config_.pages_per_block) {
-        if (free_blocks_.size() <= config_.gc_threshold_blocks) {
+        if (!is_for_gc && free_blocks_.size() <= config_.gc_threshold_blocks) {
             trigger_garbage_collection();
         }
         active_block_ = get_next_free_block();
@@ -84,47 +84,45 @@ uint32_t FtlEngine::get_next_free_block() {
 }
 
 void FtlEngine::trigger_garbage_collection() {
-    uint32_t victim_block = UNMAPPED;
-    uint32_t max_invalid = 0;
+    while (free_blocks_.size() < (config_.gc_threshold_blocks + 2)) {
+        
+        uint32_t victim_block = UNMAPPED;
+        uint32_t max_invalid = 0;
 
-    for (uint32_t i = 0; i < config_.total_blocks; ++i) {
-        if (i == active_block_ || flash_.get_block_meta(i).free_pages == config_.pages_per_block) {
-            continue;
-        }
+        for (uint32_t i = 0; i < config_.total_blocks; ++i) {
 
-        uint32_t invalid_count = flash_.get_block_meta(i).invalid_pages;
-        if (invalid_count > max_invalid) {
-            max_invalid = invalid_count;
-            victim_block = i;
-        }
-    }
-
-    if (victim_block == UNMAPPED) {
-        return; 
-    }
-
-    uint32_t pages_moved = 0;
-
-    for (uint32_t offset = 0; offset < config_.pages_per_block; ++offset) {
-        PhysicalAddress old_pba = {victim_block, offset};
-        FlashPage page = flash_.read_page(old_pba);
-
-        if (page.state == PageState::VALID) {
-            PhysicalAddress new_pba = allocate_page();
+            if (i == active_block_) continue;
             
-            flash_.program_page(new_pba, page.lpn);
-            metrics_.record_flash_write();
-            metrics_.record_flash_read();
+            const auto& meta = flash_.get_block_meta(i);
+            if (meta.free_pages == config_.pages_per_block) continue;
 
-            l2p_table_[page.lpn] = new_pba;
-            pages_moved++;
+            if (meta.invalid_pages > max_invalid) {
+                max_invalid = meta.invalid_pages;
+                victim_block = i;
+            }
         }
-    }
 
-    flash_.erase_block(victim_block);
-    metrics_.record_erase();
-    metrics_.record_gc(pages_moved);
-    
-    free_blocks_.push_back(victim_block);
+        if (victim_block == UNMAPPED) break; 
+
+        uint32_t pages_moved = 0;
+        for (uint32_t offset = 0; offset < config_.pages_per_block; ++offset) {
+            PhysicalAddress old_pba = {victim_block, offset};
+            FlashPage page = flash_.read_page(old_pba);
+
+            if (page.state == PageState::VALID) {
+                PhysicalAddress new_pba = allocate_page(true); 
+                flash_.program_page(new_pba, page.lpn);
+                metrics_.record_flash_write();
+                metrics_.record_flash_read();
+                l2p_table_[page.lpn] = new_pba;
+                pages_moved++;
+            }
+        }
+
+        flash_.erase_block(victim_block);
+        metrics_.record_erase();
+        metrics_.record_gc(pages_moved);
+        free_blocks_.push_back(victim_block);
+    }
 }
 }
