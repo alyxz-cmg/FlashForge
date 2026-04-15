@@ -226,11 +226,3 @@ It mirrors real challenges in SSD firmware development, particularly:
 * Garbage collection efficiency
 * Write amplification reduction
 * Wear balancing under skewed workloads
-
----
-
-## Takeaway
-
-FlashForge is not just a simulator—it’s a **mini storage research platform** that exposes the real tradeoffs behind SSD performance and reliability.
-
----
